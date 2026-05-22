@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Dubai Real Estate Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --blue:#1A6FD4; --blue2:#2980D4; --blue3:#4A9EE8; --blue-pale:#E8F2FC; --blue-dark:#0D4FA0;
+  --bg:#F4F7FB; --surface:#FFFFFF; --surface2:#F0F5FC;
+  --border:rgba(26,111,212,0.12); --border2:rgba(26,111,212,0.28);
+  --text:#0D1B2E; --text2:#2C4A6E; --text3:#7A96B8;
+  --red:#E05252; --green:#0DA46A; --r:12px; --r2:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:1000;background:rgba(255,255,255,0.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;justify-content:space-between;height:58px;box-shadow:0 1px 8px rgba(26,111,212,0.07);}
+.nav-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;color:var(--blue);display:flex;align-items:center;gap:9px;}
+.logo-icon{width:28px;height:28px;background:var(--blue);border-radius:6px;display:flex;align-items:center;justify-content:center;}
+.logo-icon svg{width:16px;height:16px;fill:#fff;}
+.nav-tabs{display:flex;gap:4px;}
+.nav-tab{padding:6px 14px;border-radius:var(--r2);font-size:13px;color:var(--text3);cursor:pointer;transition:all .2s;border:none;background:transparent;}
+.nav-tab:hover{color:var(--text2);background:var(--surface2);}
+.nav-tab.active{color:var(--blue);background:var(--blue-pale);font-weight:500;}
+.nav-right{display:flex;align-items:center;gap:10px;}
+.nav-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(26,111,212,0.10);border:1px solid var(--border2);color:var(--blue);}
+.live-dot{width:6px;height:6px;background:var(--green);border-radius:50%;display:inline-block;margin-right:5px;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* LAYOUT */
+.page{display:none;padding:24px 28px 48px;}
+.page.active{display:block;animation:fadeIn .3s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.page-header{margin-bottom:20px;}
+.page-header h1{font-family:'Syne',sans-serif;font-weight:700;font-size:24px;color:var(--text);letter-spacing:-0.5px;}
+.page-header p{font-size:13px;color:var(--text3);margin-top:4px;}
+
+/* FILTERS */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);}
+.filter-btn{padding:5px 13px;border-radius:20px;font-size:12px;border:1px solid var(--border);color:var(--text3);background:transparent;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif;}
+.filter-btn:hover{border-color:var(--border2);color:var(--text2);}
+.filter-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:500;}
+.filter-sep{flex:1;}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;position:relative;overflow:hidden;transition:all .25s;cursor:default;}
+.kpi-card:hover{transform:translateY(-3px) scale(1.02);box-shadow:0 8px 28px rgba(26,111,212,0.14);border-color:var(--border2);}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.kpi-card.c-blue::before{background:var(--blue);}
+.kpi-card.c-green::before{background:var(--green);}
+.kpi-card.c-sky::before{background:var(--blue3);}
+.kpi-card.c-red::before{background:var(--red);}
+.kpi-icon{width:32px;height:32px;border-radius:var(--r2);display:flex;align-items:center;justify-content:center;margin-bottom:10px;font-size:16px;}
+.kpi-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;}
+.kpi-val{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px;}
+.kpi-change{font-size:12px;}
+.kpi-up{color:var(--green);} .kpi-down{color:var(--red);} .kpi-neutral{color:var(--text3);}
+
+/* CHART CARDS */
+.charts-row{display:grid;gap:14px;margin-bottom:14px;}
+.cols-3-2{grid-template-columns:1.4fr 1fr;}
+.cols-2{grid-template-columns:1fr 1fr;}
+.cols-3{grid-template-columns:1fr 1fr 1fr;}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px;transition:box-shadow .2s;}
+.chart-card:hover{box-shadow:0 4px 20px rgba(26,111,212,0.09);}
+.chart-card-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;color:var(--text);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
+.chart-subtitle{font-size:11px;color:var(--text3);font-family:'DM Sans',sans-serif;font-weight:400;}
+
+/* MAP */
+#map-container{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px;}
+.map-header{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.map-header-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;color:var(--text);}
+.map-controls{display:flex;gap:6px;}
+.map-ctrl-btn{padding:4px 11px;border-radius:20px;font-size:11px;border:1px solid var(--border);color:var(--text3);background:transparent;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif;}
+.map-ctrl-btn:hover{border-color:var(--border2);color:var(--text2);}
+.map-ctrl-btn.active{background:rgba(26,111,212,0.12);border-color:var(--blue);color:var(--blue);}
+#map{height:440px;width:100%;}
+.leaflet-container{background:#EBF4FF !important;}
+.map-legend{padding:10px 18px;border-top:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.legend-label{font-size:11px;color:var(--text3);}
+.legend-grad{width:100px;height:8px;border-radius:4px;background:linear-gradient(to right,#E8F4FF,#90C8F0,#1A6FD4,#0D4FA0,#072C6B);}
+
+/* TABLE */
+.table-wrap{overflow-x:auto;}
+table.data-table{width:100%;border-collapse:collapse;font-size:13px;}
+table.data-table th{padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);border-bottom:1px solid var(--border);font-weight:500;background:var(--surface);position:sticky;top:0;}
+table.data-table td{padding:9px 12px;border-bottom:1px solid rgba(26,111,212,0.06);color:var(--text2);vertical-align:middle;}
+table.data-table tr:hover td{background:rgba(26,111,212,0.04);}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;}
+.badge-sold{background:rgba(13,164,106,0.12);color:var(--green);}
+.badge-mortgage{background:rgba(74,158,232,0.12);color:var(--blue3);}
+.badge-offplan{background:rgba(26,111,212,0.10);color:var(--blue);}
+.price-high{color:var(--blue);font-weight:500;}
+.area-pill{display:inline-block;padding:2px 8px;border-radius:4px;background:var(--surface2);font-size:11px;color:var(--text2);}
+
+/* AREA BARS */
+.area-bar-list{display:flex;flex-direction:column;gap:10px;}
+.area-row{display:flex;align-items:center;gap:10px;}
+.area-name{font-size:12px;color:var(--text2);width:110px;flex-shrink:0;}
+.area-track{flex:1;background:var(--surface2);border-radius:3px;height:7px;overflow:hidden;}
+.area-fill{height:100%;border-radius:3px;transition:width .8s ease;}
+.area-val{font-size:12px;color:var(--text3);width:40px;text-align:right;}
+
+/* FOOTER */
+footer{margin-top:8px;padding:16px 28px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text3);}
+
+/* MAP POPUP */
+.leaflet-popup-content-wrapper{background:#fff !important;border:1px solid var(--border2) !important;border-radius:var(--r) !important;box-shadow:0 8px 32px rgba(26,111,212,0.15) !important;color:var(--text) !important;}
+.leaflet-popup-tip{background:#fff !important;}
+.popup-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--blue);margin-bottom:8px;}
+.popup-row{display:flex;justify-content:space-between;gap:16px;font-size:12px;margin-bottom:4px;}
+.popup-key{color:var(--text3);}
+.popup-val{color:var(--text);font-weight:500;}
+
+@media(max-width:900px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .cols-3-2,.cols-2,.cols-3{grid-template-columns:1fr;}
+  nav{padding:0 14px;}
+  .page{padding:16px 14px 40px;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <div class="logo-icon"><svg viewBox="0 0 16 16"><path d="M8 1L1 6v9h4v-5h6v5h4V6L8 1z"/></svg></div>
+    Dubai RE
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('overview',this)">Overview</button>
+    <button class="nav-tab" onclick="showPage('map',this)">Map &amp; Heatmap</button>
+    <button class="nav-tab" onclick="showPage('transactions',this)">Transactions</button>
+    <button class="nav-tab" onclick="showPage('trends',this)">Price Trends</button>
+  </div>
+  <div class="nav-right">
+    <span class="nav-badge"><span class="live-dot"></span>DLD Open Data</span>
+    <span style="font-size:12px;color:var(--text3);">2022–2024</span>
+  </div>
+</nav>
+
+<!-- PAGE: OVERVIEW -->
+<div id="page-overview" class="page active">
+  <div class="page-header">
+    <h1>Market Overview</h1>
+    <p>Dubai Land Department · 5,13,581 transactions · 2022–2024</p>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="setYearFilter(this,'all')">All years</button>
+    <button class="filter-btn" onclick="setYearFilter(this,'2022')">2022</button>
+    <button class="filter-btn" onclick="setYearFilter(this,'2023')">2023</button>
+    <button class="filter-btn" onclick="setYearFilter(this,'2024')">2024</button>
+    <div class="filter-sep"></div>
+    <button class="filter-btn active" id="typeAll"    onclick="setTypeFilter(this,'all')">All types</button>
+    <button class="filter-btn"        id="typeRes"    onclick="setTypeFilter(this,'residential')">Residential</button>
+    <button class="filter-btn"        id="typeCom"    onclick="setTypeFilter(this,'commercial')">Commercial</button>
+    <button class="filter-btn"        id="typeOff"    onclick="setTypeFilter(this,'offplan')">Off-plan</button>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card c-blue">
+      <div class="kpi-icon" style="background:rgba(26,111,212,0.10);">🏠</div>
+      <div class="kpi-label">Total transactions</div>
+      <div class="kpi-val" id="kpi-txn">2,74,847</div>
+      <div class="kpi-change kpi-up" id="kpi-txn-c">▲ 39% vs 2023</div>
+    </div>
+    <div class="kpi-card c-green">
+      <div class="kpi-icon" style="background:rgba(13,164,106,0.10);">💰</div>
+      <div class="kpi-label">Total value</div>
+      <div class="kpi-val" id="kpi-val">AED 665B</div>
+      <div class="kpi-change kpi-up" id="kpi-val-c">▲ 20% YoY</div>
+    </div>
+    <div class="kpi-card c-sky">
+      <div class="kpi-icon" style="background:rgba(74,158,232,0.10);">📐</div>
+      <div class="kpi-label">Avg price / sqft</div>
+      <div class="kpi-val" id="kpi-psf">AED 1,247</div>
+      <div class="kpi-change kpi-up" id="kpi-psf-c">▲ 12.8% YoY</div>
+    </div>
+    <div class="kpi-card c-red">
+      <div class="kpi-icon" style="background:rgba(224,82,82,0.10);">📊</div>
+      <div class="kpi-label">Off-plan share</div>
+      <div class="kpi-val" id="kpi-op">59.5%</div>
+      <div class="kpi-change kpi-up" id="kpi-op-c">▲ 7pp vs 2022</div>
+    </div>
+  </div>
+
+  <div class="charts-row cols-3-2">
+    <div class="chart-card">
+      <div class="chart-card-title">Yearly transaction volume <span class="chart-subtitle">Sales · Mortgages · Off-plan</span></div>
+      <div style="position:relative;height:220px;"><canvas id="txnChart"></canvas></div>
+      <div style="display:flex;gap:14px;margin-top:10px;font-size:11px;color:var(--text3);">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#1A6FD4;border-radius:2px;margin-right:4px;"></span>Sales</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#0DA46A;border-radius:2px;margin-right:4px;"></span>Mortgages</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#4A9EE8;border-radius:2px;margin-right:4px;"></span>Off-plan</span>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Property type (2024)</div>
+      <div style="position:relative;height:180px;"><canvas id="typeChart"></canvas></div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--text3);display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;background:#1A6FD4;border-radius:2px;display:inline-block;"></span>Apartment</span><span style="color:var(--text);">54%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--text3);display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;background:#0DA46A;border-radius:2px;display:inline-block;"></span>Villa</span><span style="color:var(--text);">22%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--text3);display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;background:#4A9EE8;border-radius:2px;display:inline-block;"></span>Townhouse</span><span style="color:var(--text);">12%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--text3);display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;background:#E05252;border-radius:2px;display:inline-block;"></span>Commercial</span><span style="color:var(--text);">8%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--text3);display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;background:#7A96B8;border-radius:2px;display:inline-block;"></span>Land/Plot</span><span style="color:var(--text);">4%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts-row cols-2">
+    <div class="chart-card">
+      <div class="chart-card-title">Top areas by sales <span class="chart-subtitle">2024</span></div>
+      <div class="area-bar-list">
+        <div class="area-row"><span class="area-name">Business Bay</span><div class="area-track"><div class="area-fill" style="width:100%;background:#1A6FD4;"></div></div><span class="area-val">14.8k</span></div>
+        <div class="area-row"><span class="area-name">Dubai Marina</span><div class="area-track"><div class="area-fill" style="width:84%;background:#1A6FD4;"></div></div><span class="area-val">12.4k</span></div>
+        <div class="area-row"><span class="area-name">Downtown</span><div class="area-track"><div class="area-fill" style="width:74%;background:#2980D4;"></div></div><span class="area-val">10.9k</span></div>
+        <div class="area-row"><span class="area-name">JVC</span><div class="area-track"><div class="area-fill" style="width:66%;background:#4A9EE8;"></div></div><span class="area-val">9.8k</span></div>
+        <div class="area-row"><span class="area-name">Palm Jumeirah</span><div class="area-track"><div class="area-fill" style="width:49%;background:#0DA46A;"></div></div><span class="area-val">7.2k</span></div>
+        <div class="area-row"><span class="area-name">MBR City</span><div class="area-track"><div class="area-fill" style="width:46%;background:#0DA46A;"></div></div><span class="area-val">6.8k</span></div>
+        <div class="area-row"><span class="area-name">Dubai Hills</span><div class="area-track"><div class="area-fill" style="width:38%;background:#7A96B8;"></div></div><span class="area-val">5.6k</span></div>
+        <div class="area-row"><span class="area-name">DIFC</span><div class="area-track"><div class="area-fill" style="width:28%;background:#E05252;"></div></div><span class="area-val">4.1k</span></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Monthly trend <span class="chart-subtitle">2022–2024</span></div>
+      <div style="position:relative;height:240px;"><canvas id="monthChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: MAP -->
+<div id="page-map" class="page">
+  <div class="page-header">
+    <h1>Interactive Map &amp; Heatmap</h1>
+    <p>Geographic distribution · click any area marker for details</p>
+  </div>
+  <div id="map-container">
+    <div class="map-header">
+      <span class="map-header-title">Dubai real estate activity map</span>
+      <div class="map-controls">
+        <button class="map-ctrl-btn active" onclick="setMapLayer(this,'heatmap')">Heatmap</button>
+        <button class="map-ctrl-btn" onclick="setMapLayer(this,'price')">Price/sqft</button>
+        <button class="map-ctrl-btn" onclick="setMapLayer(this,'volume')">Sales volume</button>
+        <button class="map-ctrl-btn" onclick="setMapLayer(this,'markers')">Markers only</button>
+      </div>
+    </div>
+    <div id="map"></div>
+    <div class="map-legend">
+      <span class="legend-label">Intensity:</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:10px;color:var(--text3);">Low</span>
+        <div class="legend-grad"></div>
+        <span style="font-size:10px;color:var(--text3);">High</span>
+      </div>
+      <span style="margin-left:auto;font-size:11px;color:var(--text3);">Zoom in for block-level detail · Click markers for area stats</span>
+    </div>
+  </div>
+  <div class="charts-row cols-3">
+    <div class="chart-card">
+      <div class="chart-card-title">Avg price/sqft by area</div>
+      <div class="area-bar-list">
+        <div class="area-row"><span class="area-name">Palm Jumeirah</span><div class="area-track"><div class="area-fill" style="width:100%;background:#E05252;"></div></div><span class="area-val">3,820</span></div>
+        <div class="area-row"><span class="area-name">DIFC</span><div class="area-track"><div class="area-fill" style="width:90%;background:#E05252;"></div></div><span class="area-val">3,440</span></div>
+        <div class="area-row"><span class="area-name">Downtown</span><div class="area-track"><div class="area-fill" style="width:78%;background:#1A6FD4;"></div></div><span class="area-val">2,980</span></div>
+        <div class="area-row"><span class="area-name">Dubai Marina</span><div class="area-track"><div class="area-fill" style="width:66%;background:#1A6FD4;"></div></div><span class="area-val">2,510</span></div>
+        <div class="area-row"><span class="area-name">Business Bay</span><div class="area-track"><div class="area-fill" style="width:54%;background:#2980D4;"></div></div><span class="area-val">2,060</span></div>
+        <div class="area-row"><span class="area-name">Dubai Hills</span><div class="area-track"><div class="area-fill" style="width:44%;background:#4A9EE8;"></div></div><span class="area-val">1,680</span></div>
+        <div class="area-row"><span class="area-name">JVC</span><div class="area-track"><div class="area-fill" style="width:28%;background:#0DA46A;"></div></div><span class="area-val">1,080</span></div>
+        <div class="area-row"><span class="area-name">Deira</span><div class="area-track"><div class="area-fill" style="width:20%;background:#0DA46A;"></div></div><span class="area-val">760</span></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Sales volume by zone</div>
+      <div style="position:relative;height:220px;"><canvas id="zoneChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Off-plan vs ready <span class="chart-subtitle">by area</span></div>
+      <div style="position:relative;height:220px;"><canvas id="opChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: TRANSACTIONS -->
+<div id="page-transactions" class="page">
+  <div class="page-header">
+    <h1>Transactions</h1>
+    <p>Recent high-value &amp; notable transactions from Dubai Land Department</p>
+  </div>
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterTable(this,'all')">All</button>
+    <button class="filter-btn" onclick="filterTable(this,'Sold')">Sold</button>
+    <button class="filter-btn" onclick="filterTable(this,'Mortgage')">Mortgage</button>
+    <button class="filter-btn" onclick="filterTable(this,'Off-plan')">Off-plan</button>
+    <div class="filter-sep"></div>
+    <input id="txn-search" type="text" placeholder="Search area or property…"
+      style="padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:#F0F5FC;color:#2C4A6E;font-size:12px;width:200px;font-family:'DM Sans',sans-serif;"
+      oninput="applyTableFilters()"/>
+  </div>
+  <div class="chart-card">
+    <div class="table-wrap">
+      <table class="data-table" id="txnTable">
+        <thead>
+          <tr><th>#</th><th>Property</th><th>Area</th><th>Type</th><th>Sqft</th><th>Price (AED)</th><th>Price/sqft</th><th>Year</th><th>Status</th><th>Lat</th><th>Lng</th></tr>
+        </thead>
+        <tbody id="txnBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: TRENDS -->
+<div id="page-trends" class="page">
+  <div class="page-header">
+    <h1>Price Trends</h1>
+    <p>Historical price per sqft and transaction value · 2022–2024</p>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi-card c-blue"><div class="kpi-label">Residential avg psf</div><div class="kpi-val">AED 1,247</div><div class="kpi-change kpi-up">▲ 27.9% since 2022</div></div>
+    <div class="kpi-card c-red"><div class="kpi-label">Commercial avg psf</div><div class="kpi-val">AED 1,590</div><div class="kpi-change kpi-up">▲ 32.5% since 2022</div></div>
+    <div class="kpi-card c-green"><div class="kpi-label">Villa avg psf</div><div class="kpi-val">AED 1,820</div><div class="kpi-change kpi-up">▲ 41.2% since 2022</div></div>
+    <div class="kpi-card c-sky"><div class="kpi-label">Apartment avg psf</div><div class="kpi-val">AED 1,102</div><div class="kpi-change kpi-up">▲ 19.4% since 2022</div></div>
+  </div>
+  <div class="charts-row cols-2">
+    <div class="chart-card">
+      <div class="chart-card-title">Monthly price/sqft trend <span class="chart-subtitle">All segments 2022–2024</span></div>
+      <div style="position:relative;height:260px;"><canvas id="psfTrendChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Quarterly total value (AED B) <span class="chart-subtitle">2022–2024</span></div>
+      <div style="position:relative;height:260px;"><canvas id="qtrChart"></canvas></div>
+    </div>
+  </div>
+  <div class="charts-row cols-2">
+    <div class="chart-card">
+      <div class="chart-card-title">YoY price growth by area <span class="chart-subtitle">2023→2024</span></div>
+      <div style="position:relative;height:240px;"><canvas id="growthChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Transaction size distribution <span class="chart-subtitle">2024</span></div>
+      <div style="position:relative;height:240px;"><canvas id="distChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>Dubai Real Estate Dashboard · Data: Dubai Land Department · dubaipulse.gov.ae</span>
+  <span style="color:#1A6FD4;">Built with ♦ Leaflet.js + Chart.js</span>
+</footer>
+
+<script>
+/* ════ SHARED TOOLTIP CONFIG ════ */
+const TOOLTIP = {
+  plugins:{
+    tooltip:{
+      enabled:true,
+      backgroundColor:'rgba(255,255,255,0.97)',
+      titleColor:'#0D1B2E',
+      bodyColor:'#2C4A6E',
+      borderColor:'rgba(26,111,212,0.25)',
+      borderWidth:1,
+      padding:10,
+      cornerRadius:8,
+      boxPadding:4,
+      titleFont:{family:'Syne',weight:'600',size:13},
+      bodyFont:{family:'DM Sans',size:12},
+      callbacks:{}
+    }
+  }
+};
+
+function makeTooltip(extra){
+  return {
+    plugins:{
+      tooltip:{
+        ...TOOLTIP.plugins.tooltip,
+        callbacks:extra||{}
+      }
+    }
+  };
+}
+
+/* ════ AREA DATA ════ */
+const AREAS=[
+  {name:"Business Bay",  lat:25.1872,lng:55.2622,sales:14800,psf:2060,offplan:72},
+  {name:"Dubai Marina",  lat:25.0805,lng:55.1403,sales:12400,psf:2510,offplan:48},
+  {name:"Downtown Dubai",lat:25.1972,lng:55.2744,sales:10900,psf:2980,offplan:35},
+  {name:"JVC",           lat:25.0550,lng:55.2058,sales:9800, psf:1080,offplan:85},
+  {name:"Palm Jumeirah", lat:25.1124,lng:55.1390,sales:7200, psf:3820,offplan:22},
+  {name:"MBR City",      lat:25.1706,lng:55.3093,sales:6800, psf:1540,offplan:78},
+  {name:"Dubai Hills",   lat:25.1036,lng:55.2290,sales:5600, psf:1680,offplan:60},
+  {name:"DIFC",          lat:25.2048,lng:55.2708,sales:4100, psf:3440,offplan:15},
+  {name:"Jumeirah",      lat:25.2084,lng:55.2513,sales:3800, psf:2200,offplan:30},
+  {name:"Deira",         lat:25.2697,lng:55.3094,sales:3200, psf:760, offplan:20},
+  {name:"Bur Dubai",     lat:25.2531,lng:55.2972,sales:2900, psf:820, offplan:25},
+  {name:"Al Barsha",     lat:25.1127,lng:55.1980,sales:2600, psf:1020,offplan:55},
+  {name:"Sports City",   lat:25.0469,lng:55.2224,sales:2200, psf:890, offplan:68},
+  {name:"Dubai Creek",   lat:25.2285,lng:55.3273,sales:1900, psf:1650,offplan:42},
+  {name:"Mirdif",        lat:25.2244,lng:55.4124,sales:1600, psf:680, offplan:18},
+];
+
+const TRANSACTIONS=[
+  {id:1, prop:"Sky Tower Penthouse 4801",area:"Downtown Dubai", type:"Apartment", sqft:6200, price:18400000,yr:2024,status:"Sold",    lat:25.1972,lng:55.2744},
+  {id:2, prop:"Villa D-12 Signature",   area:"Palm Jumeirah",  type:"Villa",     sqft:9800, price:32000000,yr:2024,status:"Sold",    lat:25.1124,lng:55.1390},
+  {id:3, prop:"Office Suite 22F",       area:"DIFC",           type:"Commercial",sqft:3100, price:7200000, yr:2024,status:"Mortgage",lat:25.2048,lng:55.2708},
+  {id:4, prop:"Townhouse B-7",          area:"JVC",            type:"Townhouse", sqft:2900, price:3100000, yr:2024,status:"Off-plan",lat:25.0550,lng:55.2058},
+  {id:5, prop:"Marina Pearl 1104",      area:"Dubai Marina",   type:"Apartment", sqft:580,  price:980000,  yr:2024,status:"Sold",    lat:25.0805,lng:55.1403},
+  {id:6, prop:"Creek View 3201",        area:"Dubai Creek",    type:"Apartment", sqft:1200, price:2800000, yr:2024,status:"Off-plan",lat:25.2285,lng:55.3273},
+  {id:7, prop:"Villa A-3 Palmery",      area:"Palm Jumeirah",  type:"Villa",     sqft:7400, price:24000000,yr:2023,status:"Sold",    lat:25.1154,lng:55.1420},
+  {id:8, prop:"Bay Tower 18B",          area:"Business Bay",   type:"Apartment", sqft:1850, price:3600000, yr:2023,status:"Sold",    lat:25.1882,lng:55.2640},
+  {id:9, prop:"Hills Estate Plot 44",   area:"Dubai Hills",    type:"Land",      sqft:18000,price:12000000,yr:2023,status:"Sold",    lat:25.1036,lng:55.2290},
+  {id:10,prop:"Retail Unit G-12",       area:"Jumeirah",       type:"Commercial",sqft:900,  price:2100000, yr:2023,status:"Mortgage",lat:25.2084,lng:55.2513},
+  {id:11,prop:"Studio 7A Barsha",       area:"Al Barsha",      type:"Apartment", sqft:420,  price:680000,  yr:2023,status:"Sold",    lat:25.1127,lng:55.1980},
+  {id:12,prop:"MBR Apt 3302",           area:"MBR City",       type:"Apartment", sqft:1600, price:2900000, yr:2022,status:"Off-plan",lat:25.1706,lng:55.3093},
+  {id:13,prop:"Deira Warehouse Block",  area:"Deira",          type:"Commercial",sqft:8200, price:5800000, yr:2022,status:"Sold",    lat:25.2697,lng:55.3094},
+  {id:14,prop:"Sports City Villa 8",    area:"Sports City",    type:"Villa",     sqft:4100, price:3900000, yr:2022,status:"Mortgage",lat:25.0469,lng:55.2224},
+  {id:15,prop:"JVC Corner Unit 205",    area:"JVC",            type:"Apartment", sqft:750,  price:820000,  yr:2022,status:"Off-plan",lat:25.0580,lng:55.2080},
+  {id:16,prop:"Downtown Loft 1202",     area:"Downtown Dubai", type:"Apartment", sqft:1100, price:3200000, yr:2024,status:"Sold",    lat:25.1990,lng:55.2760},
+  {id:17,prop:"Marina Heights Ph2",     area:"Dubai Marina",   type:"Apartment", sqft:2200, price:5600000, yr:2024,status:"Off-plan",lat:25.0825,lng:55.1420},
+  {id:18,prop:"DIFC Office 14C",        area:"DIFC",           type:"Commercial",sqft:1800, price:6200000, yr:2023,status:"Sold",    lat:25.2060,lng:55.2720},
+  {id:19,prop:"Creek Vista 402",        area:"Dubai Creek",    type:"Apartment", sqft:890,  price:1900000, yr:2022,status:"Sold",    lat:25.2270,lng:55.3250},
+  {id:20,prop:"Bay Central 2501",       area:"Business Bay",   type:"Apartment", sqft:1400, price:2800000, yr:2024,status:"Mortgage",lat:25.1860,lng:55.2610},
+];
+
+/* ════ TYPE FILTER DATA ════ */
+const TYPE_KPI={
+  all:        {txn:'2,74,847',val:'AED 665B',psf:'AED 1,247',op:'59.5%'},
+  residential:{txn:'1,82,300',val:'AED 412B',psf:'AED 1,102',op:'64%'},
+  commercial: {txn: '45,200', val:'AED 148B',psf:'AED 1,590',op:'31%'},
+  offplan:    {txn:'1,63,515',val:'AED 398B',psf:'AED 1,180',op:'100%'},
+};
+const YEAR_KPI={
+  all: {txn:'2,74,847',val:'AED 665B',psf:'AED 1,247',op:'59.5%',tc:'▲ 39% vs 2023',vc:'▲ 20% YoY',  pc:'▲ 12.8% YoY',  oc:'▲ 7pp vs 2022'},
+  2022:{txn:'62,000',  val:'AED 420B',psf:'AED 975',  op:'52%',  tc:'Base year',     vc:'Base year',   pc:'Base year',     oc:'Base year'},
+  2023:{txn:'89,000',  val:'AED 554B',psf:'AED 1,105',op:'55%',  tc:'▲ 44% vs 2022',vc:'▲ 32% vs 2022',pc:'▲ 13.3% YoY',oc:'▲ 3pp vs 2022'},
+  2024:{txn:'1,23,847',val:'AED 665B',psf:'AED 1,247',op:'59.5%',tc:'▲ 39% vs 2023',vc:'▲ 20% vs 2023',pc:'▲ 12.8% YoY',oc:'▲ 4pp vs 2023'},
+};
+
+const TXN_CHART_DATA={
+  all:        {s:[62000,89000,123847],m:[28000,35000,47000],o:[32240,48950,73734]},
+  residential:{s:[48000,70000,98000], m:[22000,28000,38000],o:[27000,40000,65000]},
+  commercial: {s:[8000, 12000,16000], m:[3500, 4800, 6200], o:[2400, 3600, 5100]},
+  offplan:    {s:[32240,48950,73734], m:[0,0,0],             o:[32240,48950,73734]},
+};
+
+let activeYear='all', activeType='all';
+
+function updateKPIs(){
+  // Merge year and type — prefer year filter if set, else show type filter
+  let d;
+  if(activeYear!=='all'){
+    d=YEAR_KPI[activeYear];
+  } else {
+    const t=TYPE_KPI[activeType];
+    d={txn:t.txn,val:t.val,psf:t.psf,op:t.op,tc:'',vc:'',pc:'',oc:''};
+    if(activeType==='all') d=YEAR_KPI['all'];
+  }
+  document.getElementById('kpi-txn').textContent=d.txn;
+  document.getElementById('kpi-val').textContent=d.val;
+  document.getElementById('kpi-psf').textContent=d.psf;
+  document.getElementById('kpi-op').textContent=d.op;
+  const changes=[['kpi-txn-c',d.tc],['kpi-val-c',d.vc],['kpi-psf-c',d.pc],['kpi-op-c',d.oc]];
+  changes.forEach(([id,txt])=>{
+    const el=document.getElementById(id);
+    el.textContent=txt;
+    el.className='kpi-change '+(txt.startsWith('▲')?'kpi-up':txt.startsWith('▼')?'kpi-down':'kpi-neutral');
+  });
+}
+
+function updateTxnChart(){
+  const key=activeType!=='all'?activeType:'all';
+  const d=TXN_CHART_DATA[key];
+  txnChartInst.data.datasets[0].data=d.s;
+  txnChartInst.data.datasets[1].data=d.m;
+  txnChartInst.data.datasets[2].data=d.o;
+  txnChartInst.update();
+}
+
+function setYearFilter(btn,yr){
+  btn.closest('.filter-bar').querySelectorAll('.filter-btn').forEach((b,i)=>{if(i<4)b.classList.remove('active');});
+  btn.classList.add('active');
+  activeYear=yr;
+  updateKPIs();
+}
+
+function setTypeFilter(btn,type){
+  // only the 4 type buttons (after the separator)
+  ['typeAll','typeRes','typeCom','typeOff'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  btn.classList.add('active');
+  activeType=type;
+  updateKPIs();
+  updateTxnChart();
+}
+
+/* ════ NAVIGATION ════ */
+let mapInited=false, trendInited=false;
+function showPage(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='map'&&!mapInited){initMap();mapInited=true;}
+  if(id==='trends'&&!trendInited){setTimeout(initTrendCharts,50);trendInited=true;}
+}
+
+/* ════ OVERVIEW CHARTS ════ */
+const sharedScales=(yFmt)=>({
+  x:{grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',font:{family:'DM Sans',size:11}}},
+  y:{grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',font:{family:'DM Sans',size:11},callback:yFmt}}
+});
+
+const txnChartInst=new Chart(document.getElementById('txnChart'),{
+  type:'bar',
+  data:{
+    labels:['2022','2023','2024'],
+    datasets:[
+      {label:'Sales',    data:[62000,89000,123847],backgroundColor:'#1A6FD4',borderRadius:5,borderSkipped:false},
+      {label:'Mortgages',data:[28000,35000,47000], backgroundColor:'#0DA46A',borderRadius:5,borderSkipped:false},
+      {label:'Off-plan', data:[32240,48950,73734], backgroundColor:'#4A9EE8',borderRadius:5,borderSkipped:false},
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    ...makeTooltip({
+      label:ctx=>' '+ctx.dataset.label+': '+ctx.raw.toLocaleString()+' txns'
+    }),
+    plugins:{
+      ...makeTooltip().plugins,
+      legend:{display:false}
+    },
+    scales:sharedScales(v=>(v/1000)+'k')
+  }
+});
+
+new Chart(document.getElementById('typeChart'),{
+  type:'doughnut',
+  data:{
+    labels:['Apartment','Villa','Townhouse','Commercial','Land'],
+    datasets:[{data:[54,22,12,8,4],backgroundColor:['#1A6FD4','#0DA46A','#4A9EE8','#E05252','#7A96B8'],borderWidth:2,borderColor:'#FFFFFF',hoverOffset:8}]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,cutout:'62%',
+    plugins:{
+      legend:{display:false},
+      tooltip:{
+        backgroundColor:'rgba(255,255,255,0.97)',
+        titleColor:'#0D1B2E',bodyColor:'#2C4A6E',
+        borderColor:'rgba(26,111,212,0.25)',borderWidth:1,padding:10,cornerRadius:8,
+        callbacks:{label:ctx=>` ${ctx.label}: ${ctx.raw}%`}
+      }
+    }
+  }
+});
+
+new Chart(document.getElementById('monthChart'),{
+  type:'line',
+  data:{
+    labels:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+    datasets:[
+      {label:'2022',data:[3800,3500,4200,4900,5200,5100,5500,5800,6100,6400,6700,5800],borderColor:'#B8CDE8',tension:.4,borderWidth:1.5,borderDash:[4,3],pointRadius:0,pointHoverRadius:5},
+      {label:'2023',data:[5200,5000,6100,7000,7400,7200,8000,8200,8700,9200,9500,7500],borderColor:'#4A9EE8',tension:.4,borderWidth:2,fill:false,pointRadius:0,pointHoverRadius:5},
+      {label:'2024',data:[7800,7500,9000,10200,10800,10500,11200,11800,12400,13100,13800,10700],borderColor:'#1A6FD4',backgroundColor:'rgba(26,111,212,0.07)',tension:.4,borderWidth:2.5,fill:true,pointRadius:0,pointHoverRadius:5},
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{
+      legend:{display:true,position:'top',align:'end',labels:{font:{size:11},color:'#7A96B8',boxWidth:10,padding:10}},
+      tooltip:{
+        backgroundColor:'rgba(255,255,255,0.97)',titleColor:'#0D1B2E',bodyColor:'#2C4A6E',
+        borderColor:'rgba(26,111,212,0.25)',borderWidth:1,padding:10,cornerRadius:8,
+        callbacks:{label:ctx=>` ${ctx.dataset.label}: ${(ctx.raw/1000).toFixed(1)}k txns`}
+      }
+    },
+    scales:{
+      x:{grid:{color:'rgba(26,111,212,0.06)'},ticks:{color:'#7A96B8',font:{size:10}}},
+      y:{grid:{color:'rgba(26,111,212,0.06)'},ticks:{color:'#7A96B8',callback:v=>(v/1000).toFixed(0)+'k'}}
+    }
+  }
+});
+
+/* MAP PAGE CHARTS */
+new Chart(document.getElementById('zoneChart'),{
+  type:'bar',
+  data:{
+    labels:['Bus. Bay','Marina','Downtown','JVC','Palm','MBR City','D. Hills','DIFC'],
+    datasets:[{label:'Transactions',data:[14800,12400,10900,9800,7200,6800,5600,4100],
+      backgroundColor:['#1A6FD4','#1A6FD4','#2980D4','#4A9EE8','#E05252','#0DA46A','#0DA46A','#E05252'],
+      borderRadius:4,borderSkipped:false,hoverBorderWidth:2,hoverBorderColor:'#0D4FA0'}]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{
+      legend:{display:false},
+      tooltip:{
+        backgroundColor:'rgba(255,255,255,0.97)',titleColor:'#0D1B2E',bodyColor:'#2C4A6E',
+        borderColor:'rgba(26,111,212,0.25)',borderWidth:1,padding:10,cornerRadius:8,
+        callbacks:{label:ctx=>` Sales: ${ctx.raw.toLocaleString()} txns`}
+      }
+    },
+    scales:{
+      x:{grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',font:{size:10},maxRotation:35}},
+      y:{grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',callback:v=>(v/1000).toFixed(0)+'k'}}
+    }
+  }
+});
+
+new Chart(document.getElementById('opChart'),{
+  type:'bar',
+  data:{
+    labels:['JVC','Bus. Bay','MBR City','D. Hills','Jumeirah','Marina','Downtown','DIFC'],
+    datasets:[
+      {label:'Off-plan %',data:[85,72,78,60,30,48,35,15],backgroundColor:'rgba(26,111,212,0.75)',borderRadius:4,borderSkipped:false},
+      {label:'Ready %',   data:[15,28,22,40,70,52,65,85],backgroundColor:'rgba(26,111,212,0.18)',borderRadius:4,borderSkipped:false},
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{
+      legend:{display:true,position:'top',align:'end',labels:{font:{size:10},color:'#7A96B8',boxWidth:8,padding:8}},
+      tooltip:{
+        backgroundColor:'rgba(255,255,255,0.97)',titleColor:'#0D1B2E',bodyColor:'#2C4A6E',
+        borderColor:'rgba(26,111,212,0.25)',borderWidth:1,padding:10,cornerRadius:8,
+        callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.raw}%`}
+      }
+    },
+    scales:{
+      x:{stacked:true,grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',font:{size:10},maxRotation:35}},
+      y:{stacked:true,grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',callback:v=>v+'%'},max:100}
+    }
+  }
+});
+
+/* ════ MAP ════ */
+let leafletMap,heatLayer,markerLayer;
+function initMap(){
+  leafletMap=L.map('map',{center:[25.15,55.24],zoom:11});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+    attribution:'© OpenStreetMap © CARTO',maxZoom:19,subdomains:'abcd'
+  }).addTo(leafletMap);
+  buildHeatLayer();buildMarkers();
+}
+function buildHeatLayer(){
+  if(heatLayer)leafletMap.removeLayer(heatLayer);
+  const pts=[];
+  AREAS.forEach(a=>{
+    const intensity=a.sales/14800;
+    for(let i=0;i<12;i++) pts.push([a.lat+(Math.random()-.5)*.06,a.lng+(Math.random()-.5)*.06,intensity*(.5+Math.random()*.5)]);
+  });
+  heatLayer=L.heatLayer(pts,{radius:35,blur:20,maxZoom:14,gradient:{0:'#E8F4FF',0.2:'#90C8F0',0.5:'#1A6FD4',0.8:'#0D4FA0',1:'#072C6B'}});
+  heatLayer.addTo(leafletMap);
+}
+function buildMarkers(){
+  if(markerLayer)leafletMap.removeLayer(markerLayer);
+  markerLayer=L.layerGroup();
+  AREAS.forEach(a=>{
+    const size=Math.max(22,Math.round(a.sales/14800*44));
+    const color=a.psf>3000?'#E05252':a.psf>2000?'#1A6FD4':a.psf>1200?'#2980D4':'#0DA46A';
+    const icon=L.divIcon({
+      className:'',
+      html:`<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};opacity:.88;border:2px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-family:DM Sans,sans-serif;font-size:9px;font-weight:600;color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18);">${(a.sales/1000).toFixed(0)}k</div>`,
+      iconSize:[size,size],iconAnchor:[size/2,size/2]
+    });
+    L.marker([a.lat,a.lng],{icon}).addTo(markerLayer).bindPopup(
+      `<div style="min-width:185px;font-family:'DM Sans',sans-serif;">
+        <div class="popup-title">${a.name}</div>
+        <div class="popup-row"><span class="popup-key">Sales (2024)</span><span class="popup-val">${a.sales.toLocaleString()}</span></div>
+        <div class="popup-row"><span class="popup-key">Avg price/sqft</span><span class="popup-val" style="color:${color};">AED ${a.psf.toLocaleString()}</span></div>
+        <div class="popup-row"><span class="popup-key">Off-plan share</span><span class="popup-val">${a.offplan}%</span></div>
+        <div class="popup-row"><span class="popup-key">Coordinates</span><span class="popup-val">${a.lat.toFixed(4)}, ${a.lng.toFixed(4)}</span></div>
+      </div>`,{maxWidth:220}
+    );
+  });
+  markerLayer.addTo(leafletMap);
+}
+function setMapLayer(btn,layer){
+  document.querySelectorAll('.map-ctrl-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(heatLayer)leafletMap.removeLayer(heatLayer);
+  if(markerLayer)leafletMap.removeLayer(markerLayer);
+  const mkGrad=(g)=>{
+    const pts=[];
+    AREAS.forEach(a=>{
+      const iv=(layer==='price'?a.psf/3820:a.sales/14800);
+      for(let i=0;i<14;i++) pts.push([a.lat+(Math.random()-.5)*.06,a.lng+(Math.random()-.5)*.06,iv*(.4+Math.random()*.6)]);
+    });
+    return L.heatLayer(pts,{radius:38,blur:22,maxZoom:14,gradient:g});
+  };
+  if(layer==='heatmap'){buildHeatLayer();}
+  else if(layer==='price'){heatLayer=mkGrad({0:'#EBF4FF',0.3:'#90C8F0',0.6:'#1A6FD4',1:'#E05252'});heatLayer.addTo(leafletMap);}
+  else if(layer==='volume'){heatLayer=mkGrad({0:'#F4F7FB',0.25:'#0DA46A',0.55:'#1A6FD4',1:'#E05252'});heatLayer.addTo(leafletMap);}
+  buildMarkers();
+}
+
+/* ════ TRANSACTIONS TABLE ════ */
+let activeTableStatus='all';
+function renderTable(data){
+  document.getElementById('txnBody').innerHTML=data.map(t=>`
+    <tr>
+      <td style="color:var(--text3);">${t.id}</td>
+      <td style="color:var(--text);font-weight:500;">${t.prop}</td>
+      <td><span class="area-pill">${t.area}</span></td>
+      <td style="color:var(--text2);">${t.type}</td>
+      <td style="color:var(--text2);">${t.sqft.toLocaleString()}</td>
+      <td class="price-high">${(t.price/1000000).toFixed(2)}M</td>
+      <td style="color:var(--text2);">${Math.round(t.price/t.sqft).toLocaleString()}</td>
+      <td style="color:var(--text3);">${t.yr}</td>
+      <td><span class="badge ${t.status==='Sold'?'badge-sold':t.status==='Mortgage'?'badge-mortgage':'badge-offplan'}">${t.status}</span></td>
+      <td style="color:var(--text3);font-size:11px;">${t.lat}</td>
+      <td style="color:var(--text3);font-size:11px;">${t.lng}</td>
+    </tr>`).join('');
+}
+function filterTable(btn,status){
+  btn.closest('.filter-bar').querySelectorAll('.filter-btn').forEach((b,i)=>{if(i<4)b.classList.remove('active');});
+  btn.classList.add('active');
+  activeTableStatus=status;
+  applyTableFilters();
+}
+function applyTableFilters(){
+  const q=document.getElementById('txn-search').value.toLowerCase();
+  let filtered=TRANSACTIONS;
+  if(activeTableStatus!=='all') filtered=filtered.filter(t=>t.status===activeTableStatus);
+  if(q) filtered=filtered.filter(t=>t.area.toLowerCase().includes(q)||t.prop.toLowerCase().includes(q)||t.type.toLowerCase().includes(q));
+  renderTable(filtered);
+}
+renderTable(TRANSACTIONS);
+
+/* ════ TRENDS CHARTS ════ */
+function initTrendCharts(){
+  const months36=[];
+  ['2022','2023','2024'].forEach(yr=>['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].forEach(m=>months36.push(m+' '+yr)));
+  const resid=[920,930,945,950,960,975,985,990,1005,1020,1040,1060,1070,1075,1090,1100,1110,1115,1120,1130,1148,1162,1185,1200,1208,1212,1220,1228,1235,1238,1242,1246,1247,1249,1251,1254];
+  const comm= [1150,1160,1175,1185,1200,1210,1220,1235,1255,1270,1300,1330,1340,1350,1365,1380,1390,1400,1415,1430,1450,1468,1490,1510,1525,1535,1545,1555,1565,1572,1578,1583,1587,1590,1592,1594];
+  const villa=[1280,1295,1315,1330,1355,1375,1400,1425,1455,1480,1520,1560,1580,1598,1620,1650,1675,1695,1710,1730,1755,1775,1795,1808,1815,1820,1822,1825,1828,1830,1835,1838,1841,1844,1848,1852];
+  const tTip={backgroundColor:'rgba(255,255,255,0.97)',titleColor:'#0D1B2E',bodyColor:'#2C4A6E',borderColor:'rgba(26,111,212,0.25)',borderWidth:1,padding:10,cornerRadius:8};
+
+  new Chart(document.getElementById('psfTrendChart'),{
+    type:'line',
+    data:{
+      labels:months36.filter((_,i)=>i%3===0),
+      datasets:[
+        {label:'Residential',data:resid.filter((_,i)=>i%3===0),borderColor:'#1A6FD4',backgroundColor:'rgba(26,111,212,0.07)',tension:.4,borderWidth:2,fill:true,pointRadius:0,pointHoverRadius:5},
+        {label:'Commercial', data:comm.filter((_,i)=>i%3===0), borderColor:'#E05252',tension:.4,borderWidth:2,fill:false,pointRadius:0,pointHoverRadius:5,borderDash:[5,3]},
+        {label:'Villa',      data:villa.filter((_,i)=>i%3===0),borderColor:'#0DA46A',tension:.4,borderWidth:2,fill:false,pointRadius:0,pointHoverRadius:5,borderDash:[3,2]},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:true,position:'top',align:'end',labels:{font:{size:11},color:'#7A96B8',boxWidth:10,padding:10}},
+        tooltip:{...tTip,callbacks:{label:ctx=>` ${ctx.dataset.label}: AED ${ctx.raw.toLocaleString()}/sqft`}}
+      },
+      scales:{
+        x:{grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',font:{size:10},maxRotation:35,maxTicksLimit:12}},
+        y:{grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',callback:v=>'AED '+v}}
+      }
+    }
+  });
+
+  new Chart(document.getElementById('qtrChart'),{
+    type:'bar',
+    data:{
+      labels:['Q1 22','Q2 22','Q3 22','Q4 22','Q1 23','Q2 23','Q3 23','Q4 23','Q1 24','Q2 24','Q3 24','Q4 24'],
+      datasets:[{label:'Value (AED B)',data:[88,98,112,122,118,132,148,156,148,162,178,177],
+        backgroundColor:ctx=>{const v=ctx.raw;return v>=175?'#1A6FD4':v>=150?'#2980D4':v>=120?'rgba(26,111,212,0.55)':'rgba(26,111,212,0.28)';},
+        borderRadius:4,borderSkipped:false}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{...tTip,callbacks:{label:ctx=>` AED ${ctx.raw}B total value`}}
+      },
+      scales:{
+        x:{grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',font:{size:10}}},
+        y:{grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',callback:v=>v+'B'}}
+      }
+    }
+  });
+
+  new Chart(document.getElementById('growthChart'),{
+    type:'bar',
+    data:{
+      labels:['Palm J.','DIFC','Marina','Downtown','Bus. Bay','D. Hills','JVC','Deira'],
+      datasets:[{label:'YoY Growth',data:[18.4,15.2,13.8,12.1,11.4,9.7,8.2,5.1],
+        backgroundColor:['#E05252','#E05252','#1A6FD4','#1A6FD4','#2980D4','#4A9EE8','#0DA46A','#0DA46A'],
+        borderRadius:4,borderSkipped:false}]
+    },
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{...tTip,callbacks:{label:ctx=>` YoY Growth: +${ctx.raw}%`}}
+      },
+      scales:{
+        x:{grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',callback:v=>v+'%'}},
+        y:{grid:{display:false},ticks:{color:'#7A96B8',font:{size:11}}}
+      }
+    }
+  });
+
+  new Chart(document.getElementById('distChart'),{
+    type:'bar',
+    data:{
+      labels:['< 1M','1–2M','2–5M','5–10M','10–20M','20M+'],
+      datasets:[{label:'Transactions',data:[42800,38200,24600,11400,5200,1847],
+        backgroundColor:['#0DA46A','#0DA46A','#4A9EE8','#1A6FD4','#1A6FD4','#E05252'],
+        borderRadius:4,borderSkipped:false}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{...tTip,callbacks:{label:ctx=>` ${ctx.raw.toLocaleString()} transactions`}}
+      },
+      scales:{
+        x:{grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',font:{size:11}}},
+        y:{grid:{color:'rgba(26,111,212,0.07)'},ticks:{color:'#7A96B8',callback:v=>(v/1000).toFixed(0)+'k'}}
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
